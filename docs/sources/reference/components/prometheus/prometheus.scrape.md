@@ -97,8 +97,6 @@ You can use the following arguments with `prometheus.scrape`:
 > * `prometheus.remote_write` only when configured for Remote Write v2.
 > * `prometheus.write_queue`
 > 
-> Metadata support for Remote Write v1 in `prometheus.remote_write` will be added soon.
-> 
 > Experimental features are subject to frequent breaking changes, and may be removed with no equivalent replacement.
 > To enable and use an experimental feature, you must set the `stability.level` [flag][] to `experimental`.
 
