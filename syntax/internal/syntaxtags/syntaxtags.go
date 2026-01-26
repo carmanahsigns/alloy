@@ -237,9 +237,16 @@ func Get(ty reflect.Type) []Field {
 				// struct.
 				innerFields := Get(deferenceType(field.Type))
 				for _, innerField := range innerFields {
+					// Create a new slice to avoid aliasing issues with append.
+					// append() can reuse the underlying array if there's capacity,
+					// which can cause index corruption when multiple fields share
+					// the same backing array.
+					newIndex := make([]int, len(field.Index)+len(innerField.Index))
+					copy(newIndex, field.Index)
+					copy(newIndex[len(field.Index):], innerField.Index)
 					fields = append(fields, Field{
 						Name:  innerField.Name,
-						Index: append(field.Index, innerField.Index...),
+						Index: newIndex,
 						Flags: innerField.Flags,
 					})
 				}
