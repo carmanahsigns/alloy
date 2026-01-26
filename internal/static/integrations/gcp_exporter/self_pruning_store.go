@@ -26,10 +26,11 @@ type CounterOrHistogram interface {
 }
 
 type SelfPruningDeltaStore[T CounterOrHistogram] struct {
+	// lastListOperationTime must be first for 64-bit alignment on 32-bit architectures.
+	lastListOperationTime        atomic.Int64
 	wrapping                     CounterOrHistogramStore[T]
 	mux                          sync.Mutex
 	trackedMetricDescriptorNames map[string]struct{}
-	lastListOperationTime        atomic.Int64
 	logger                       log.Logger
 }
 
