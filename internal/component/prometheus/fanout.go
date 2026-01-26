@@ -27,6 +27,11 @@ var _ storage.Appendable = (*Fanout)(nil)
 // Fanout supports the default Alloy style of appendables since it can go to multiple outputs. It also allows the intercepting of appends.
 // It also maintains the responsibility of assigning global ref IDs to a series via the label store.
 type Fanout struct {
+	// lastSeriesCount must be first for 64-bit alignment on 32-bit architectures.
+	// It stores the number of series that were sent through the last appender,
+	// helping to estimate how much memory to allocate for the staleness trackers.
+	lastSeriesCount atomic.Int64
+
 	mut sync.RWMutex
 	// children is where to fan out.
 	children []storage.Appendable
@@ -35,10 +40,6 @@ type Fanout struct {
 	writeLatency   prometheus.Histogram
 	samplesCounter prometheus.Counter
 	ls             labelstore.LabelStore
-
-	// lastSeriesCount stores the number of series that were sent through the last appender. It helps to estimate how
-	// much memory to allocate for the staleness trackers.
-	lastSeriesCount atomic.Int64
 
 	useLabelStore         bool
 	seriesRefMappingStore *appenders.SeriesRefMappingStore
