@@ -23,6 +23,7 @@ func TestArguments_UnmarshalAlloy(t *testing.T) {
 				ClientID:        "otel-collector",
 				RackID:          "",
 				UseLeaderEpoch:  true,
+				ConnIdleTimeout: 9 * time.Minute,
 				Metadata: configkafka.MetadataConfig{
 					Full:            true,
 					RefreshInterval: 10 * time.Minute,
@@ -42,8 +43,7 @@ func TestArguments_UnmarshalAlloy(t *testing.T) {
 					Interval: 1 * time.Second,
 				},
 				MinFetchSize:           1,
-				DefaultFetchSize:       1048576,
-				MaxFetchSize:           0,
+				MaxFetchSize:           1048576,
 				MaxPartitionFetchSize:  1048576,
 				MaxFetchWait:           250 * time.Millisecond,
 				GroupRebalanceStrategy: "range",
@@ -143,7 +143,6 @@ func TestArguments_UnmarshalAlloy(t *testing.T) {
 					max_elapsed_time = "1m"
 				}
 				min_fetch_size = 2
-				default_fetch_size = 10000
 				max_fetch_size = 20
 				max_partition_fetch_size = 30000
 				rack_id = "test-rack"
@@ -171,6 +170,7 @@ func TestArguments_UnmarshalAlloy(t *testing.T) {
 					ClientID:        "test_client_id",
 					RackID:          "test-rack",
 					UseLeaderEpoch:  true,
+					ConnIdleTimeout: 9 * time.Minute,
 					Metadata: configkafka.MetadataConfig{
 						Full:            true,
 						RefreshInterval: 10 * time.Minute,
@@ -190,7 +190,6 @@ func TestArguments_UnmarshalAlloy(t *testing.T) {
 						Interval: 12 * time.Second,
 					},
 					MinFetchSize:           2,
-					DefaultFetchSize:       10000,
 					MaxFetchSize:           20,
 					MaxPartitionFetchSize:  30000,
 					MaxFetchWait:           2 * time.Second,
@@ -236,7 +235,7 @@ func TestArguments_Auth(t *testing.T) {
 	tests := []struct {
 		testName string
 		cfg      string
-		expected map[string]interface{}
+		expected map[string]any
 	}{
 		{
 			testName: "plain_text",
@@ -253,7 +252,7 @@ func TestArguments_Auth(t *testing.T) {
 
 				output {}
 			`,
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				"brokers":                  []string{"10.10.10.10:9092"},
 				"protocol_version":         "2.0.0",
 				"session_timeout":          10 * time.Second,
@@ -263,13 +262,13 @@ func TestArguments_Auth(t *testing.T) {
 				"client_id":                "otel-collector",
 				"initial_offset":           "latest",
 				"min_fetch_size":           1,
-				"default_fetch_size":       1048576,
-				"max_fetch_size":           0,
+				"max_fetch_size":           1048576,
 				"max_partition_fetch_size": 1048576,
 				"max_fetch_wait":           250 * time.Millisecond,
 				"group_rebalance_strategy": "range",
 				"rack_id":                  "",
 				"use_leader_epoch":         true,
+				"conn_idle_timeout":        9 * time.Minute,
 				"metadata": configkafka.MetadataConfig{
 					Full:            true,
 					RefreshInterval: 10 * time.Minute,
@@ -306,8 +305,8 @@ func TestArguments_Auth(t *testing.T) {
 					MaxInterval:         0,
 					MaxElapsedTime:      0,
 				},
-				"auth": map[string]interface{}{
-					"plain_text": map[string]interface{}{
+				"auth": map[string]any{
+					"plain_text": map[string]any{
 						"username": "test_username",
 						"password": "test_password",
 					},
@@ -334,7 +333,7 @@ func TestArguments_Auth(t *testing.T) {
 
 				output {}
 			`,
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				"brokers":                  []string{"10.10.10.10:9092"},
 				"protocol_version":         "2.0.0",
 				"session_timeout":          10 * time.Second,
@@ -344,13 +343,13 @@ func TestArguments_Auth(t *testing.T) {
 				"client_id":                "otel-collector",
 				"initial_offset":           "latest",
 				"min_fetch_size":           1,
-				"default_fetch_size":       1048576,
-				"max_fetch_size":           0,
+				"max_fetch_size":           1048576,
 				"max_partition_fetch_size": 1048576,
 				"max_fetch_wait":           250 * time.Millisecond,
 				"group_rebalance_strategy": "range",
 				"rack_id":                  "",
 				"use_leader_epoch":         true,
+				"conn_idle_timeout":        9 * time.Minute,
 				"metadata": configkafka.MetadataConfig{
 					Full:            true,
 					RefreshInterval: 10 * time.Minute,
@@ -387,13 +386,13 @@ func TestArguments_Auth(t *testing.T) {
 					MaxInterval:         0,
 					MaxElapsedTime:      0,
 				},
-				"auth": map[string]interface{}{
-					"sasl": map[string]interface{}{
+				"auth": map[string]any{
+					"sasl": map[string]any{
 						"username":  "test_username",
 						"password":  "test_password",
 						"mechanism": "test_mechanism",
 						"version":   9,
-						"aws_msk": map[string]interface{}{
+						"aws_msk": map[string]any{
 							"region": "test_region",
 						},
 					},
@@ -421,7 +420,7 @@ func TestArguments_Auth(t *testing.T) {
 
 				output {}
 			`,
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				"brokers":                  []string{"10.10.10.10:9092"},
 				"protocol_version":         "2.0.0",
 				"session_timeout":          10 * time.Second,
@@ -431,13 +430,13 @@ func TestArguments_Auth(t *testing.T) {
 				"client_id":                "otel-collector",
 				"initial_offset":           "latest",
 				"min_fetch_size":           1,
-				"default_fetch_size":       1048576,
-				"max_fetch_size":           0,
+				"max_fetch_size":           1048576,
 				"max_partition_fetch_size": 1048576,
 				"max_fetch_wait":           250 * time.Millisecond,
 				"group_rebalance_strategy": "range",
 				"rack_id":                  "",
 				"use_leader_epoch":         true,
+				"conn_idle_timeout":        9 * time.Minute,
 				"metadata": configkafka.MetadataConfig{
 					Full:            true,
 					RefreshInterval: 10 * time.Minute,
@@ -474,8 +473,8 @@ func TestArguments_Auth(t *testing.T) {
 					MaxInterval:         0,
 					MaxElapsedTime:      0,
 				},
-				"auth": map[string]interface{}{
-					"tls": map[string]interface{}{
+				"auth": map[string]any{
+					"tls": map[string]any{
 						"insecure":             true,
 						"insecure_skip_verify": true,
 						"server_name_override": "test_server_name_override",
@@ -509,7 +508,7 @@ func TestArguments_Auth(t *testing.T) {
 
 				output {}
 			`,
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				"brokers":                  []string{"10.10.10.10:9092"},
 				"protocol_version":         "2.0.0",
 				"session_timeout":          10 * time.Second,
@@ -519,13 +518,13 @@ func TestArguments_Auth(t *testing.T) {
 				"client_id":                "otel-collector",
 				"initial_offset":           "latest",
 				"min_fetch_size":           1,
-				"default_fetch_size":       1048576,
-				"max_fetch_size":           0,
+				"max_fetch_size":           1048576,
 				"max_partition_fetch_size": 1048576,
 				"max_fetch_wait":           250 * time.Millisecond,
 				"group_rebalance_strategy": "range",
 				"rack_id":                  "",
 				"use_leader_epoch":         true,
+				"conn_idle_timeout":        9 * time.Minute,
 				"metadata": configkafka.MetadataConfig{
 					Full:            true,
 					RefreshInterval: 10 * time.Minute,
@@ -562,8 +561,8 @@ func TestArguments_Auth(t *testing.T) {
 					MaxInterval:         0,
 					MaxElapsedTime:      0,
 				},
-				"auth": map[string]interface{}{
-					"kerberos": map[string]interface{}{
+				"auth": map[string]any{
+					"kerberos": map[string]any{
 						"service_name":             "test_service_name",
 						"realm":                    "test_realm",
 						"use_keytab":               true,
@@ -596,6 +595,47 @@ func TestArguments_Auth(t *testing.T) {
 			require.Equal(t, expected, *actual)
 		})
 	}
+}
+
+func TestDeprecatedTopicShouldBeMigratedToNewTopics(t *testing.T) {
+	// When using the deprecated per-signal `topic`
+	// (singular) field, the converted config should have
+	// the deprecated `topic` unset and the new `topics` set.
+	cfg := `
+		brokers = ["10.10.10.10:9092"]
+		protocol_version = "2.0.0"
+		logs {
+			topic    = "my_custom_logs_topic"
+			encoding = "otlp_json"
+		}
+		metrics {
+			topic    = "my_custom_metrics_topic"
+			encoding = "otlp_json"
+		}
+		traces {
+			topic    = "my_custom_traces_topic"
+			encoding = "otlp_json"
+		}
+		output {}
+	`
+
+	var args kafka.Arguments
+	err := syntax.Unmarshal([]byte(cfg), &args)
+	require.NoError(t, err)
+
+	otelCfg, err := args.Convert()
+	require.NoError(t, err)
+
+	converted := otelCfg.(*kafkareceiver.Config)
+	require.NoError(t, converted.Validate(), "converted config should be valid")
+
+	// The deprecated `topic` should be migrated into `topics`, matching upstream behavior.
+	require.Equal(t, []string{"my_custom_logs_topic"}, converted.Logs.Topics,
+		"deprecated logs.topic should be migrated to logs.topics")
+	require.Equal(t, []string{"my_custom_metrics_topic"}, converted.Metrics.Topics,
+		"deprecated metrics.topic should be migrated to metrics.topics")
+	require.Equal(t, []string{"my_custom_traces_topic"}, converted.Traces.Topics,
+		"deprecated traces.topic should be migrated to traces.topics")
 }
 
 func TestDebugMetricsConfig(t *testing.T) {

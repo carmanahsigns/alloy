@@ -12,9 +12,9 @@ import (
 	"github.com/grafana/loki/pkg/push"
 )
 
-func newEntry(ex map[string]interface{}, lbs model.LabelSet, line string, ts time.Time) Entry {
+func newEntry(ex map[string]any, lbs model.LabelSet, line string, ts time.Time) Entry {
 	if ex == nil {
-		ex = map[string]interface{}{}
+		ex = map[string]any{}
 	}
 	if lbs == nil {
 		lbs = model.LabelSet{}
@@ -27,6 +27,22 @@ func newEntry(ex map[string]interface{}, lbs model.LabelSet, line string, ts tim
 				Timestamp: ts,
 				Line:      line,
 			},
+		},
+	}
+}
+
+func newTestEntry(extracted map[string]any, labels model.LabelSet, entry push.Entry) Entry {
+	if extracted == nil {
+		extracted = map[string]any{}
+	}
+	if labels == nil {
+		labels = model.LabelSet{}
+	}
+	return Entry{
+		Extracted: extracted,
+		Entry: loki.Entry{
+			Labels: labels,
+			Entry:  entry,
 		},
 	}
 }

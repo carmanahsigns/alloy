@@ -52,6 +52,7 @@ type Value struct {
 type Metric struct {
 	TestName string `json:"test_name"`
 	Name     string `json:"__name__"`
+	Version  string `json:"version"`
 }
 
 func (m *MetricResponse) Unmarshal(data []byte) error {
@@ -78,7 +79,7 @@ func (h *HistogramRawData) UnmarshalJSON(b []byte) error {
 }
 
 func (b *Bucket) UnmarshalJSON(data []byte) error {
-	var raw []interface{}
+	var raw []any
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
@@ -100,7 +101,7 @@ func (b *Bucket) UnmarshalJSON(data []byte) error {
 }
 
 func (v *Value) UnmarshalJSON(b []byte) error {
-	var arr []interface{}
+	var arr []any
 	if err := json.Unmarshal(b, &arr); err != nil {
 		return err
 	}

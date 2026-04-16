@@ -22,6 +22,7 @@ var DefaultArguments = Config{
 		HostName:              rac.ResourceAttributeConfig{Enabled: true},
 		HostType:              rac.ResourceAttributeConfig{Enabled: true},
 		K8sClusterName:        rac.ResourceAttributeConfig{Enabled: true},
+		OracleCloudRealm:      rac.ResourceAttributeConfig{Enabled: true},
 	},
 }
 
@@ -32,8 +33,8 @@ func (args *Config) SetToDefault() {
 	*args = DefaultArguments
 }
 
-func (args Config) Convert() map[string]interface{} {
-	return map[string]interface{}{
+func (args Config) Convert() map[string]any {
+	return map[string]any{
 		"resource_attributes": args.ResourceAttributes.Convert(),
 	}
 }
@@ -48,10 +49,11 @@ type ResourceAttributesConfig struct {
 	HostName              rac.ResourceAttributeConfig `alloy:"host.name,block,optional"`
 	HostType              rac.ResourceAttributeConfig `alloy:"host.type,block,optional"`
 	K8sClusterName        rac.ResourceAttributeConfig `alloy:"k8s.cluster.name,block,optional"`
+	OracleCloudRealm      rac.ResourceAttributeConfig `alloy:"oracle_cloud.realm,block,optional"`
 }
 
-func (r ResourceAttributesConfig) Convert() map[string]interface{} {
-	return map[string]interface{}{
+func (r ResourceAttributesConfig) Convert() map[string]any {
+	return map[string]any{
 		"cloud.platform":          r.CloudPlatform.Convert(),
 		"cloud.provider":          r.CloudProvider.Convert(),
 		"cloud.region":            r.CloudRegion.Convert(),
@@ -60,5 +62,6 @@ func (r ResourceAttributesConfig) Convert() map[string]interface{} {
 		"host.name":               r.HostName.Convert(),
 		"host.type":               r.HostType.Convert(),
 		"k8s.cluster.name":        r.K8sClusterName.Convert(),
+		"oracle_cloud.realm":      r.OracleCloudRealm.Convert(),
 	}
 }

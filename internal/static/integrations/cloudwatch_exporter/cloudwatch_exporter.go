@@ -10,8 +10,6 @@ import (
 	"github.com/go-kit/log"
 	yace "github.com/prometheus-community/yet-another-cloudwatch-exporter/pkg"
 	yaceClients "github.com/prometheus-community/yet-another-cloudwatch-exporter/pkg/clients"
-	yaceClientsV1 "github.com/prometheus-community/yet-another-cloudwatch-exporter/pkg/clients/v1"
-	yaceClientsV2 "github.com/prometheus-community/yet-another-cloudwatch-exporter/pkg/clients/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
@@ -25,7 +23,7 @@ type cachingFactory interface {
 	Clear()
 }
 
-var _ cachingFactory = &yaceClientsV2.CachingFactory{}
+var _ cachingFactory = &yaceClients.CachingFactory{}
 
 // exporter wraps YACE entrypoint around an Integration implementation
 type exporter struct {
@@ -33,21 +31,17 @@ type exporter struct {
 	logger               *slog.Logger
 	cachingClientFactory cachingFactory
 	scrapeConf           yaceModel.JobsConfig
+	labelsSnakeCase      bool
 }
 
 // NewCloudwatchExporter creates a new YACE wrapper, that implements Integration
-func NewCloudwatchExporter(name string, logger log.Logger, conf yaceModel.JobsConfig, fipsEnabled, debug bool, useAWSSDKVersionV2 bool) (*exporter, error) {
+func NewCloudwatchExporter(name string, logger log.Logger, conf yaceModel.JobsConfig, fipsEnabled, labelsSnakeCase, debug bool) (*exporter, error) {
 	var factory cachingFactory
 	var err error
 
 	l := slog.New(newSlogHandler(logging.NewSlogGoKitHandler(logger), debug))
 
-	if useAWSSDKVersionV2 {
-		factory, err = yaceClientsV2.NewFactory(l, conf, fipsEnabled)
-	} else {
-		factory = yaceClientsV1.NewFactory(l, conf, fipsEnabled)
-	}
-
+	factory, err = yaceClients.NewFactory(l, conf, fipsEnabled)
 	if err != nil {
 		return nil, err
 	}
@@ -57,6 +51,7 @@ func NewCloudwatchExporter(name string, logger log.Logger, conf yaceModel.JobsCo
 		logger:               l,
 		cachingClientFactory: factory,
 		scrapeConf:           conf,
+		labelsSnakeCase:      labelsSnakeCase,
 	}, nil
 }
 
@@ -84,7 +79,7 @@ func (e *exporter) MetricsHandler() (http.Handler, error) {
 			reg,
 			e.cachingClientFactory,
 			yace.MetricsPerQuery(metricsPerQuery),
-			yace.LabelsSnakeCase(labelsSnakeCase),
+			yace.LabelsSnakeCase(e.labelsSnakeCase),
 			yace.CloudWatchAPIConcurrency(cloudWatchConcurrency),
 			yace.TaggingAPIConcurrency(tagConcurrency),
 		)

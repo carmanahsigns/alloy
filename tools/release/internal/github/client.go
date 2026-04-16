@@ -2,13 +2,16 @@
 package github
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/google/go-github/v57/github"
 	"golang.org/x/oauth2"
@@ -40,12 +43,20 @@ type CreateBranchParams struct {
 	SHA    string
 }
 
+// CreateTagParams holds parameters for CreateTag.
+type CreateTagParams struct {
+	Tag     string
+	SHA     string
+	Message string
+}
+
 // CreatePRParams holds parameters for CreatePR.
 type CreatePRParams struct {
 	Title string
 	Head  string
 	Base  string
 	Body  string
+	Draft bool
 }
 
 // FindCommitParams holds parameters for FindCommitWithPattern and CommitExistsWithPattern.
@@ -53,6 +64,9 @@ type FindCommitParams struct {
 	Branch  string
 	Pattern string
 }
+
+// BackportLabelColor is the hex color for backport labels (without '#' prefix).
+const BackportLabelColor = "63a504"
 
 // CreateLabelParams holds parameters for CreateLabel.
 type CreateLabelParams struct {
@@ -146,13 +160,25 @@ func (c *Client) GetRefSHA(ctx context.Context, ref string) (string, error) {
 	// Try as a tag
 	tagRef, _, err := c.api.Git.GetRef(ctx, c.owner, c.repo, "tags/"+ref)
 	if err == nil {
-		return tagRef.GetObject().GetSHA(), nil
+		sha := tagRef.GetObject().GetSHA()
+		if tagRef.GetObject().GetType() == "tag" {
+			tagObj, _, tagErr := c.api.Git.GetTag(ctx, c.owner, c.repo, sha)
+			if tagErr != nil {
+				return "", fmt.Errorf("dereferencing annotated tag %s: %w", ref, tagErr)
+			}
+			sha = tagObj.GetObject().GetSHA()
+		}
+		return sha, nil
 	}
 
 	// Try as a commit SHA
-	commit, _, err := c.api.Git.GetCommit(ctx, c.owner, c.repo, ref)
+	commit, err := c.GetCommit(ctx, ref)
 	if err == nil {
-		return commit.GetSHA(), nil
+		sha := commit.GetSHA()
+		if sha == "" {
+			return "", fmt.Errorf("commit SHA is empty for ref: %s", ref)
+		}
+		return sha, nil
 	}
 
 	return "", fmt.Errorf("could not resolve ref: %s", ref)
@@ -170,6 +196,47 @@ func (c *Client) CreateBranch(ctx context.Context, p CreateBranchParams) error {
 	_, _, err := c.api.Git.CreateRef(ctx, c.owner, c.repo, ref)
 	if err != nil {
 		return fmt.Errorf("creating branch ref: %w", err)
+	}
+
+	return nil
+}
+
+// CreateTag creates an annotated tag ref for the given SHA.
+func (c *Client) CreateTag(ctx context.Context, p CreateTagParams) error {
+	identity, err := c.GetAppIdentity(ctx)
+	if err != nil {
+		return fmt.Errorf("getting app identity for tagger: %w", err)
+	}
+
+	tagObj := &github.Tag{
+		Tag:     github.String(p.Tag),
+		Message: github.String(p.Message),
+		Tagger: &github.CommitAuthor{
+			Name:  github.String(identity.Name),
+			Email: github.String(identity.Email),
+			Date:  &github.Timestamp{Time: time.Now().UTC()},
+		},
+		Object: &github.GitObject{
+			SHA:  github.String(p.SHA),
+			Type: github.String("commit"),
+		},
+	}
+
+	created, _, err := c.api.Git.CreateTag(ctx, c.owner, c.repo, tagObj)
+	if err != nil {
+		return fmt.Errorf("creating tag object: %w", err)
+	}
+
+	ref := &github.Reference{
+		Ref: github.String("refs/tags/" + p.Tag),
+		Object: &github.GitObject{
+			SHA: github.String(created.GetSHA()),
+		},
+	}
+
+	_, _, err = c.api.Git.CreateRef(ctx, c.owner, c.repo, ref)
+	if err != nil {
+		return fmt.Errorf("creating tag ref: %w", err)
 	}
 
 	return nil
@@ -255,6 +322,7 @@ func (c *Client) CreatePR(ctx context.Context, p CreatePRParams) (*github.PullRe
 		Head:  github.String(p.Head),
 		Base:  github.String(p.Base),
 		Body:  github.String(p.Body),
+		Draft: github.Bool(p.Draft),
 	}
 
 	pr, _, err := c.api.PullRequests.Create(ctx, c.owner, c.repo, newPR)
@@ -324,8 +392,9 @@ func (c *Client) IsBranchMergedInto(ctx context.Context, source, target string) 
 	return status == "behind" || status == "identical", nil
 }
 
-// CreateLabel creates a new label in the repository.
-func (c *Client) CreateLabel(ctx context.Context, p CreateLabelParams) error {
+// EnsureLabel creates a label if it doesn't already exist.
+// Returns true if the label was created, false if it already existed.
+func (c *Client) EnsureLabel(ctx context.Context, p CreateLabelParams) (bool, error) {
 	label := &github.Label{
 		Name:        github.String(p.Name),
 		Color:       github.String(p.Color),
@@ -333,11 +402,20 @@ func (c *Client) CreateLabel(ctx context.Context, p CreateLabelParams) error {
 	}
 
 	_, _, err := c.api.Issues.CreateLabel(ctx, c.owner, c.repo, label)
-	if err != nil {
-		return fmt.Errorf("creating label %q: %w", p.Name, err)
+	if err == nil {
+		return true, nil
 	}
 
-	return nil
+	var errResp *github.ErrorResponse
+	if errors.As(err, &errResp) {
+		for _, e := range errResp.Errors {
+			if e.Code == "already_exists" {
+				return false, nil
+			}
+		}
+	}
+
+	return false, fmt.Errorf("creating label %q: %w", p.Name, err)
 }
 
 // GetReleaseByTag fetches a release by its tag name.
@@ -356,6 +434,16 @@ func (c *Client) UpdateReleaseBody(ctx context.Context, releaseID int64, body st
 	})
 	if err != nil {
 		return fmt.Errorf("updating release %d body: %w", releaseID, err)
+	}
+	return nil
+}
+
+// DeleteBranch deletes the branch ref on the remote.
+func (c *Client) DeleteBranch(ctx context.Context, branch string) error {
+	ref := "refs/heads/" + branch
+	_, err := c.api.Git.DeleteRef(ctx, c.owner, c.repo, ref)
+	if err != nil {
+		return fmt.Errorf("deleting branch %s: %w", branch, err)
 	}
 	return nil
 }
@@ -381,22 +469,49 @@ func (c *Client) GetCommit(ctx context.Context, sha string) (*github.RepositoryC
 	return commit, nil
 }
 
-// IsBot checks if a username appears to be a bot account.
-func IsBot(username string) bool {
-	return strings.HasSuffix(username, "[bot]") || strings.HasSuffix(username, "-bot") || username == "Copilot"
+// GraphQL executes a GraphQL query against the GitHub API.
+// The result parameter should be a pointer to a struct that will be decoded from the response.
+func (c *Client) GraphQL(ctx context.Context, query string, variables map[string]any, result any) error {
+	reqBody := map[string]any{
+		"query":     query,
+		"variables": variables,
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		return fmt.Errorf("marshaling graphql request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.github.com/graphql", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("creating graphql request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	// Get the HTTP client from the underlying go-github client (has auth configured)
+	httpClient := c.api.Client()
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("executing graphql request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("graphql request failed with status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
+		return fmt.Errorf("decoding graphql response: %w", err)
+	}
+
+	return nil
 }
 
-// ParseUsernameFromEmail extracts a GitHub username from a noreply email.
-// Handles formats: "user@users.noreply.github.com" and "12345+user@users.noreply.github.com"
-func ParseUsernameFromEmail(email string) string {
-	const suffix = "@users.noreply.github.com"
-	if !strings.HasSuffix(email, suffix) {
-		return ""
-	}
-	local := strings.TrimSuffix(email, suffix)
-	// Handle "12345+username" format
-	if _, after, ok := strings.Cut(local, "+"); ok {
-		return after
-	}
-	return local
+// IsBot checks if a username appears to be a bot account.
+func IsBot(username string) bool {
+	return strings.HasSuffix(username, "[bot]") ||
+		strings.HasSuffix(username, "-bot") ||
+		username == "Copilot" ||
+		username == "claude"
 }
